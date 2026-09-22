@@ -1,0 +1,18 @@
+# 构建产物（不含二进制，clone 后自行构建）
+build/
+out/
+toolchain/
+*.idsig
+
+# 签名密钥：含私钥，绝对不要提交
+# 首次构建时会自动生成，之后升级 APK 必须复用同一个密钥
+*.keystore
+*.jks
+
+# 本地配置（可能含个人域名 / 路径，不要提交）
+local.properties
+
+# 其它
+.DS_Store
+Thumbs.db
+*.log

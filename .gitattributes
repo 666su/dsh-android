@@ -1,0 +1,11 @@
+# 统一行尾，避免 Windows / Linux 之间的噪音 diff
+* text=auto
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制
+*.png binary
+*.apk binary
+*.keystore binary
+*.idsig binary

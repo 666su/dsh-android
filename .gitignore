@@ -1,16 +1,24 @@
-# 构建产物（不含二进制，clone 后自行构建）
+# 构建产物
 build/
 out/
 toolchain/
 *.idsig
 
-# 签名密钥：含私钥，绝对不要提交
-# 首次构建时会自动生成，之后升级 APK 必须复用同一个密钥
-*.keystore
-*.jks
-
 # 本地配置（可能含个人域名 / 路径，不要提交）
 local.properties
+
+# 默认忽略所有密钥和 APK
+*.keystore
+*.jks
+*.apk
+
+# 但 release/ 里的分发件要入库（否定规则必须放在被否定的规则之后）：
+#   - APK：给不想自己构建的人直接下载安装
+#   - keystore：签名一致才能覆盖升级，否则用户装新版必须先卸载
+# 注意：这个 keystore 是公开的，只用于本项目的示例 APK，不要用于正式发布
+!release/
+!release/*.apk
+!release/*.keystore
 
 # 其它
 .DS_Store

@@ -38,6 +38,9 @@ dsh-android/
 ├─ assets/logo-512.png                       图标源图
 ├─ tools/make-android-icons.ps1              生成各密度 mipmap + 自适应图标前景
 ├─ docs/webview-viewport-pitfalls.md         踩坑记录：WebView 缩放与布局视口
+├─ release/                                  ★ 可直接下载安装的分发件
+│  ├─ DSH-mobile-1.5.2.apk                   预构建 APK
+│  └─ dsh-release.keystore                   公开签名密钥（保证能覆盖升级）
 ├─ build-apk.ps1                             构建 APK（不用 Gradle）
 ├─ toolchain/                                JDK + Android SDK（约 450MB，可删可重下）
 ├─ build/                                    中间产物
@@ -58,7 +61,39 @@ zipalign       ->  对齐
 apksigner      ->  签名
 ```
 
-## 快速开始
+## 下载即用（推荐先用这个试试）
+
+不想自己构建的话，直接下载 `release/` 里的 APK 安装：
+
+**→ [`release/DSH-mobile-1.5.2.apk`](release/DSH-mobile-1.5.2.apk)**
+
+传到手机点击安装，按提示允许「安装未知来源应用」。
+
+> ⚠️ **这个 APK 里的服务地址是示例占位符**（`http://192.168.1.10:3080/`），
+> 所以打开会看到「无法连接」。按下面提示改成你自己的地址即可。
+
+### 第一次使用：改成你自己的地址
+
+打开 APK 后会看到引导页，两种改法：
+
+1. **应用内改（推荐，不用重新构建）**
+   **连点屏幕右上角三次** → 打开设置 → 填「服务器地址」→ 点「保存并重新加载」。
+   在设置里还能调「版式宽度」改变内容大小，并查看只读的视口诊断。
+2. **改源码重新构建**
+   改 `src/com/dshmobile/app/MainActivity.java` 里的 `DEFAULT_URL`，
+   或者构建时用 `-Url` 参数覆盖（见下）。
+
+### 关于 `release/dsh-release.keystore`
+
+它**故意放在仓库里**，口令是 `dshmobile`。原因：Android 要求升级包与已安装应用
+**签名一致**，否则覆盖安装会失败、必须先卸载。把签名密钥一起发布，你才能直接升级后续版本。
+
+这个密钥是**公开的**，仅用于本项目的示例 APK。**不要用它签名正式发布的应用**
+（任何人都能用它伪造你的更新包）。自己正式发布请生成自己的 keystore。
+
+## 从源码构建
+
+如果你要改代码，可以完全不用 Gradle。
 
 ### 1. 准备工具链（一次性，约 450MB）
 
@@ -106,8 +141,9 @@ powershell -ExecutionPolicy Bypass -File .\build-apk.ps1
 
 产物：`out\DSH-mobile.apk`
 
-签名密钥首次会自动生成在 `dsh-release.keystore`（口令 `dshmobile`）。
-**这个文件要留着**，以后升级 APK 必须用同一个密钥，否则覆盖安装会失败。
+如果你删掉了 `dsh-release.keystore`，首次构建会自动生成一个新的。
+**生成后要留着**，否则以后升级必须先卸载旧版。想覆盖安装就必须用同一个密钥——
+这也是 `release/` 里放了一份的原因。
 
 ### 4. 装到手机
 
@@ -117,8 +153,7 @@ powershell -ExecutionPolicy Bypass -File .\build-apk.ps1
 & "toolchain\android-sdk\platform-tools\adb.exe" install -r out\DSH-mobile.apk
 ```
 
-方式二：把 `out\DSH-mobile.apk` 传到手机（微信/网盘/USB），点击安装，
-按提示允许「安装未知来源应用」。
+方式二：把 `out\DSH-mobile.apk` 传到手机（微信/网盘/USB），点击安装。
 
 ## 使用
 

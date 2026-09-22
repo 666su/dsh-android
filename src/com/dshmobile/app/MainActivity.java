@@ -413,14 +413,26 @@ public class MainActivity extends Activity {
     private void showOfflinePage(String detail) {
         String html = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
                 + "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-                + "<style>body{margin:0;height:100vh;display:flex;flex-direction:column;"
+                + "<style>body{margin:0;min-height:100vh;display:flex;flex-direction:column;"
                 + "align-items:center;justify-content:center;background:#18181B;color:#EDEDED;"
                 + "font-family:system-ui,sans-serif;padding:24px;text-align:center}"
-                + "h2{font-size:19px;margin:0 0 10px}p{color:#8A8A96;font-size:13.5px;margin:0 0 22px;"
-                + "word-break:break-all}a{display:inline-block;padding:12px 28px;border-radius:10px;"
-                + "background:#4D6BFE;color:#fff;text-decoration:none;font-weight:600}</style></head>"
-                + "<body><h2>无法连接</h2><p>" + (detail == null ? "" : detail)
-                + "<br>" + getServerUrl() + "</p>"
+                + "h2{font-size:19px;margin:0 0 10px}"
+                + "p{color:#8A8A96;font-size:13.5px;margin:0 0 18px;word-break:break-all}"
+                + ".tip{max-width:420px;text-align:left;background:#232329;border:1px solid #33333B;"
+                + "border-radius:10px;padding:14px 16px;font-size:13px;line-height:1.7;"
+                + "color:#B9B9C4;margin:0 0 20px}"
+                + ".tip b{color:#EDEDED}.tip code{color:#8FB0FF;word-break:break-all}"
+                + "a{display:inline-block;padding:12px 28px;border-radius:10px;"
+                + "background:#4D6BFE;color:#fff;text-decoration:none;font-weight:600}"
+                + "</style></head>"
+                + "<body><h2>无法连接</h2>"
+                + "<p>" + (detail == null ? "" : detail) + "<br>" + getServerUrl() + "</p>"
+                + "<div class='tip'>"
+                + "<b>第一次使用？</b><br>"
+                + "这个 APK 里的地址是示例占位符，需要改成你自己的服务地址：<br>"
+                + "<b>连点屏幕右上角三次</b> → 打开设置 → 填「服务器地址」→ 保存并重新加载。<br>"
+                + "也可以在源码里改 <code>DEFAULT_URL</code> 后重新构建。"
+                + "</div>"
                 + "<a href='" + getServerUrl() + "'>重试</a></body></html>";
         web.loadDataWithBaseURL(getServerUrl(), html, "text/html", "utf-8", null);
     }

@@ -1,4 +1,254 @@
+<div align="center">
+
+**🌐 Language / 语言 &nbsp;→&nbsp; <kbd>[ English ]</kbd> &nbsp; <kbd>[ <a href="#zh">中文</a> ]</kbd>**
+
+<sub>English is shown by default · 默认显示英文 · <a href="#zh">点此跳到中文 ↓</a></sub>
+
+</div>
+
+---
+
 # dsh-android
+
+Wrap a **desktop-layout web app** (DSH = DeepSeek Harness Web GUI) into an Android APK
+for full-screen use on a phone.
+
+This is not a generic browser shell. It is a native shell built for one specific problem:
+**a desktop web app on a narrow mobile screen** — which means controlling the layout width,
+escaping WebView's scaling traps, and handling edge-to-edge safe areas correctly.
+
+> No private domains, backend addresses, or API endpoints are included —
+> you set the server address yourself, at build time or inside the app.
+
+## Why a native shell
+
+The DSH frontend ships a `manifest.webmanifest` (`display: fullscreen`), so in theory
+"Add to Home Screen" in a browser would also go full screen. But that manifest only has
+an SVG icon and no service worker, so Android may not treat it as an installable app.
+A browser shell also brings an address bar, external-link hijacking, and cookie isolation.
+So a native shell it is.
+
+## Features
+
+| Need | Implementation |
+|---|---|
+| Full screen, no browser UI | No ActionBar theme + WebView filling the window |
+| Login/verification redirects work | All http/https navigation **stays inside the WebView**, with **third-party cookies** enabled |
+| Verification persists | Cookies stored in the app's private directory, flushed on exit |
+| File upload | `onShowFileChooser` + SAF |
+| File download | `DownloadManager`, forwarding the WebView's cookies |
+| Back button | Go back in the page first; double-tap to exit at the root |
+| Change address | **Tap the top-right corner three times** to open settings (no UI footprint) |
+| Stable scale | Scaling baseline is fixed to **physical pixels**, unaffected by the system's "Display size / Font size" |
+| Bottom safe area | Measured system insets (systemBars / cutout / gesture area, per-edge max), **no hardcoded height** |
+
+## Repository layout
+
+```
+dsh-android/
+├─ src/com/dshmobile/app/MainActivity.java   The only Activity; all the logic
+├─ res/                                      Icons, theme, strings, network security config
+├─ AndroidManifest.xml
+├─ assets/logo-512.png                       Icon source image
+├─ tools/make-android-icons.ps1              Generates per-density mipmaps + adaptive icon foreground
+├─ docs/webview-viewport-pitfalls.md         Post-mortem: WebView scaling and the layout viewport
+├─ release/                                  ★ Ready-to-install distribution files
+│  ├─ DSH-mobile-1.5.2.apk                   Prebuilt APK
+│  └─ dsh-release.keystore                   Public signing key (so upgrades install over the top)
+├─ build-apk.ps1                             Builds the APK (no Gradle)
+├─ toolchain/                                JDK + Android SDK (~450MB, safe to delete and re-download)
+├─ build/                                    Intermediate artifacts
+└─ out/DSH-mobile.apk                        Build output
+```
+
+## Why not Gradle
+
+Gradle + the Android Gradle Plugin pulls several hundred MB of extra dependencies and is
+picky about the JDK version. This project has exactly one Activity, so the SDK's own
+command-line tools are enough:
+
+```
+aapt2 compile  ->  compile resources
+aapt2 link     ->  link resources + generate R.java
+javac          ->  compile Java
+d8             ->  convert to classes.dex
+zipalign       ->  align
+apksigner      ->  sign
+```
+
+## Download and run (try this first)
+
+If you don't want to build it yourself, just download and install the APK in `release/`:
+
+**→ [`release/DSH-mobile-1.5.2.apk`](release/DSH-mobile-1.5.2.apk)**
+
+Transfer it to your phone, tap to install, and allow "Install unknown apps" when prompted.
+
+> ⚠️ **The server address inside this APK is a placeholder** (`http://192.168.1.10:3080/`),
+> so it will show "Cannot connect" on first launch. Follow the steps below to set your own address.
+
+### First run: point it at your own address
+
+You'll see a guide screen. There are two ways to change the address:
+
+1. **In the app (recommended — no rebuild needed)**
+   **Tap the top-right corner of the screen three times** → open Settings → fill in
+   "Server address" → tap "Save and reload".
+   Settings also lets you adjust "Layout width" to change content size, and shows a
+   read-only viewport diagnostic panel.
+2. **Edit the source and rebuild**
+   Change `DEFAULT_URL` in `src/com/dshmobile/app/MainActivity.java`,
+   or override it at build time with the `-Url` parameter (see below).
+
+### About `release/dsh-release.keystore`
+
+It is **deliberately committed** to this repository, with the password `dshmobile`.
+The reason: Android requires an update package to be **signed with the same key** as the
+installed app, otherwise installing over the top fails and users must uninstall first.
+Publishing the signing key lets you upgrade to future versions directly.
+
+This key is **public** and is only meant for this project's sample APK.
+**Do not use it to sign a real release** (anyone could forge update packages with it).
+Generate your own keystore for a real release.
+
+## Build from source
+
+If you want to modify the code, you never need Gradle.
+
+### 1. Set up the toolchain (one-time, ~450MB)
+
+If you don't have a JDK and the Android SDK locally, install them first:
+
+```powershell
+$root = $PWD
+$tc   = Join-Path $root "toolchain"
+New-Item -ItemType Directory -Force -Path $tc | Out-Null
+
+# 1) JDK 17
+Invoke-WebRequest "https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jdk/hotspot/normal/eclipse" -OutFile "$tc\jdk17.zip"
+Expand-Archive "$tc\jdk17.zip" -DestinationPath $tc -Force
+
+# 2) Android cmdline-tools
+Invoke-WebRequest "https://dl.google.com/android/repository/commandlinetools-win-13114758_latest.zip" -OutFile "$tc\cmdline-tools.zip"
+$sdk = "$tc\android-sdk"
+Expand-Archive "$tc\cmdline-tools.zip" -DestinationPath $sdk -Force
+New-Item -ItemType Directory -Force -Path "$sdk\cmdline-tools\latest" | Out-Null
+Get-ChildItem "$sdk\cmdline-tools" -Exclude latest | Move-Item -Destination "$sdk\cmdline-tools\latest"
+
+# 3) SDK components
+$env:JAVA_HOME = (Get-ChildItem $tc -Directory | Where-Object Name -like "jdk-17*").FullName
+"y" * 200 -join [char]10 | Set-Content "$tc\yes.txt"
+Get-Content "$tc\yes.txt" | & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "--sdk_root=$sdk" --licenses
+Get-Content "$tc\yes.txt" | & "$sdk\cmdline-tools\latest\bin\sdkmanager.bat" "--sdk_root=$sdk" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+```
+
+### 2. Set your server address
+
+Change `DEFAULT_URL` in `src/com/dshmobile/app/MainActivity.java`,
+**or** override it at build time (this rewrites that constant in the source):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-apk.ps1 -Url "http://192.168.1.10:3080/"
+```
+
+You can also change it inside the app at any time by tapping the top-right corner three times.
+
+### 3. Build
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-apk.ps1
+```
+
+Output: `out\DSH-mobile.apk`
+
+If you deleted `dsh-release.keystore`, a new one is generated automatically on the first build.
+**Keep it** — otherwise future upgrades require uninstalling the old version first.
+Installing over the top requires the same key, which is why a copy lives in `release/`.
+
+### 4. Install on your phone
+
+Option A: over USB
+
+```powershell
+& "toolchain\android-sdk\platform-tools\adb.exe" install -r out\DSH-mobile.apk
+```
+
+Option B: transfer `out\DSH-mobile.apk` to your phone (chat app / cloud drive / USB) and tap to install.
+
+## Usage
+
+- Launches straight into a full-screen page
+- If it redirects to a verification page, just verify normally — it then stays valid long-term
+- **Tap the top-right corner three times** → Settings (address, layout width, device diagnostics)
+- Back button: go back in the page first; double-tap to exit at the root
+- Pinch to zoom to magnify a region yourself
+
+## How the scale is decided
+
+Scale percentage = `100 × physical screen width / target layout width`.
+
+A desktop layout needs enough width so the sidebar doesn't squeeze out the main content,
+so the target layout width defaults to **1280 CSS px**. Phone screens are usually only
+1000–1400 physical pixels wide, so the ratio lands near 100% and the page renders
+almost 1:1.
+
+"Layout width" in the settings panel is that target:
+
+- **Increase it** (e.g. 1400–1600) = smaller content, more on screen, closer to a desktop view
+- **Decrease it** (e.g. 900–1000) = larger content, easier to tap
+- A horizontal scrollbar at the bottom = scaled too large; increase the target value
+
+> ⚠️ This scale depends only on the **physical resolution**, not on the system's
+> "Display size / Font size". See
+> [`docs/webview-viewport-pitfalls.md`](docs/webview-viewport-pitfalls.md)
+> for the reasoning and the traps we hit.
+
+## Known limitations and troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| Stuck on the verification page | The verifier may detect WebView. Try setting `s.setUserAgentString(<desktop Chrome UA>)` in `configureWebView()` |
+| Blank screen | Debug remotely via `chrome://inspect`; or try a LAN IP address |
+| Icon is a small image on white | The adaptive icon background is transparent, and some launchers add their own. Change `res/values/colors.xml` for a solid background |
+| Install-over fails | The signing key changed. Uninstall the old version, or always use the same keystore |
+| Broken layout, tiny content | See the troubleshooting below |
+
+### Troubleshooting: tiny content / misaligned elements
+
+Open the settings panel and look at "Viewport diagnostic":
+
+| Observation | Meaning |
+|---|---|
+| `innerWidth` ≈ target layout width | Normal; the scale landed correctly |
+| `innerWidth` is several times the target | **Layout viewport out of control** — see the post-mortem in docs |
+| A horizontal scrollbar exists | Scaled too large; increase "Layout width" |
+
+## Data and privacy
+
+- All data lives in the WebView's cookies / localStorage, in the app's private directory, and is never uploaded elsewhere
+- The app requests only `INTERNET`, `ACCESS_NETWORK_STATE`, and storage permission on API 28 and below (for downloads)
+- Cleartext HTTP is enabled so you can test against a LAN address; use HTTPS in production
+
+## License
+
+MIT
+
+---
+
+Author **Jason** · Blog [blog.20240606.xyz](https://blog.20240606.xyz) · GitHub [666su](https://github.com/666su)
+
+---
+---
+
+<div id="zh"></div>
+
+<div align="center">
+
+**🌐 Language / 语言 &nbsp;→&nbsp; <kbd>[ <a href="#dsh-android">English ↑</a> ]</kbd> &nbsp; <kbd>[ 中文 ]</kbd>**
+
+</div>
+
+# dsh-android（中文）
 
 把一个**桌面版式的 Web 应用**（DSH = DeepSeek Harness Web GUI）封装成 Android APK，
 在手机上全屏使用。
